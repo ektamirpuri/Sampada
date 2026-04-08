@@ -22,7 +22,7 @@ const Auth = {
 
   async signOut() {
     await db.auth.signOut();
-    window.location.href = '/index.html';
+    window.location.href = '/Sampada/login.html';
   },
 
   async getUser() {
@@ -32,7 +32,7 @@ const Auth = {
 
   async requireAuth() {
     const user = await this.getUser();
-    if (!user) { window.location.href = '/index.html'; return null; }
+    if (!user) { window.location.href = '/Sampada/login.html'; return null; }
     return user;
   },
 

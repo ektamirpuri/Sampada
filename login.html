@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sampada · Private Wealth Intelligence</title>
+  <link rel="stylesheet" href="/Sampada/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="login-page">
+
+  <!-- LEFT ART PANEL -->
+  <div class="login-art">
+    <div class="art-grid"></div>
+    <div class="art-content fade-up">
+      <div class="art-logo">Sampada</div>
+      <div style="font-size:1.25rem;font-family:var(--font-display);color:var(--gold);opacity:0.4;margin-bottom:0.5rem;font-style:italic">संपदा</div><div style="font-size:0.75rem;color:var(--text-3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem">Private Wealth OS</div>
+      <div class="art-tagline">
+        One dashboard for every rupee you own.<br/>
+        Stocks, mutual funds, gold, FDs, IPOs —<br/>
+        tracked live, weighted precisely.
+      </div>
+
+      <!-- Decorative ticker strip -->
+      <div style="background:var(--obsidian-4);border:1px solid var(--border);border-radius:var(--r-md);padding:1rem;font-family:var(--font-mono);font-size:0.6875rem;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;color:var(--text-3)">
+          <span>PORTFOLIO SNAPSHOT</span>
+          <span style="color:var(--emerald)">● LIVE</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Stocks & Smallcase</span><span style="color:var(--emerald)">+8.34%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Mutual Funds</span><span style="color:var(--emerald)">+12.7%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Physical Gold</span><span style="color:var(--emerald)">+18.2%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-2)">Fixed Deposits</span><span style="color:var(--gold)">7.10% p.a.</span></div>
+          <div style="height:1px;background:var(--border);margin:4px 0"></div>
+          <div style="display:flex;justify-content:space-between;font-weight:500"><span style="color:var(--text)">Net Worth</span><span style="color:var(--gold)">₹42,18,640</span></div>
+        </div>
+      </div>
+
+      <div class="art-stats fade-up fade-up-2">
+        <div class="art-stat">
+          <div class="art-stat-val">9</div>
+          <div class="art-stat-label">Asset classes</div>
+        </div>
+        <div class="art-stat">
+          <div class="art-stat-val">Live</div>
+          <div class="art-stat-label">NSE prices</div>
+        </div>
+        <div class="art-stat">
+          <div class="art-stat-val">Free</div>
+          <div class="art-stat-label">Forever</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT LOGIN PANEL -->
+  <div class="login-panel">
+    <div class="login-box fade-up">
+      <div class="login-logo">Sampada</div>
+      <div class="login-subtitle">Your private wealth intelligence platform</div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('signin', this)">Sign in</button>
+        <button class="auth-tab" onclick="switchAuthTab('signup', this)">Create account</button>
+      </div>
+
+      <div id="auth-msg"></div>
+
+      <!-- SIGN IN -->
+      <div id="tab-signin" class="auth-tab-panel active">
+        <div class="form-group">
+          <label class="form-label">Email address</label>
+          <input type="email" id="si-email" class="form-input" placeholder="you@email.com" autocomplete="email"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="si-pass" class="form-input" placeholder="••••••••" autocomplete="current-password"/>
+        </div>
+        <button class="btn btn-gold" style="width:100%;justify-content:center;margin-top:0.5rem" onclick="handleSignIn()">
+          Sign in →
+        </button>
+      </div>
+
+      <!-- SIGN UP -->
+      <div id="tab-signup" class="auth-tab-panel">
+        <div class="form-group">
+          <label class="form-label">Full name</label>
+          <input type="text" id="su-name" class="form-input" placeholder="Vibhor Rattan"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email address</label>
+          <input type="email" id="su-email" class="form-input" placeholder="you@email.com"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="su-pass" class="form-input" placeholder="Minimum 8 characters"/>
+        </div>
+        <button class="btn btn-gold" style="width:100%;justify-content:center;margin-top:0.5rem" onclick="handleSignUp()">
+          Create account →
+        </button>
+      </div>
+
+      <div class="login-footer">sampada.xyz · Private wealth intelligence</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+<script src="/Sampada/js/app.js"></script>
+<script>
+const SUPABASE_URL = 'https://nsnarymjxiqquhflyyyu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zbmFyeW1qeGlxcXVoZmx5eXl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NDE5MzQsImV4cCI6MjA5MTIxNzkzNH0.bmK5vn0phw9t_neRUI0mmETUi7p8J-HngEbxGSipDzA';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+db.auth.getUser().then(({ data: { user } }) => {
+  if (user) window.location.href = '/Sampada/dashboard.html';
+});
+
+function setMsg(msg, type = 'warn') {
+  document.getElementById('auth-msg').innerHTML = `<div class="msg msg-${type}" style="margin-bottom:1rem">${msg}</div>`;
+}
+
+function switchAuthTab(tab, el) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.auth-tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('auth-msg').innerHTML = '';
+}
+
+async function handleSignIn() {
+  const email = document.getElementById('si-email').value.trim();
+  const pass = document.getElementById('si-pass').value;
+  if (!email || !pass) return setMsg('Please fill in all fields.');
+  setMsg('Authenticating…', 'warn');
+  const { error } = await db.auth.signInWithPassword({ email, password: pass });
+  if (error) return setMsg(error.message, 'error');
+  window.location.href = '/Sampada/dashboard.html';
+}
+
+async function handleSignUp() {
+  const name = document.getElementById('su-name').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const pass = document.getElementById('su-pass').value;
+  if (!name || !email || !pass) return setMsg('Please fill in all fields.');
+  if (pass.length < 8) return setMsg('Password must be at least 8 characters.');
+  setMsg('Creating your account…', 'warn');
+  const { error } = await db.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
+  if (error) return setMsg(error.message, 'error');
+  setMsg('Account created! Check your email to confirm, then sign in.', 'ok');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('tab-signin').classList.contains('active')) handleSignIn();
+  else handleSignUp();
+});
+</script>
+</body>
+</html>
