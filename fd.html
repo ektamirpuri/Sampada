@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fixed Deposits · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div><div class="page-title">Fixed Deposits</div><div class="page-subtitle">Auto-computed maturity value with compound interest</div></div>
+      <button class="btn btn-primary" onclick="openModal('add-fd-modal')">+ Add FD</button>
+    </div>
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Total principal</div><div class="card-value" id="m-principal">—</div></div>
+      <div class="card"><div class="card-title">Maturity value</div><div class="card-value" id="m-maturity">—</div></div>
+      <div class="card"><div class="card-title">Total interest</div><div class="card-value green" id="m-interest">—</div></div>
+      <div class="card"><div class="card-title">Avg interest rate</div><div class="card-value" id="m-rate">—</div></div>
+      <div class="card"><div class="card-title">Active FDs</div><div class="card-value" id="m-count">—</div></div>
+      <div class="card"><div class="card-title">Tax saver FDs</div><div class="card-value" id="m-taxsaver">—</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Bank</th><th>Principal ₹</th><th>Rate %</th><th>Tenure</th><th>Start date</th><th>Maturity date</th><th>Maturity value ₹</th><th>Interest ₹</th><th>Days left</th><th>Tax saver</th><th></th></tr></thead>
+        <tbody id="fd-body"><tr><td colspan="11" style="text-align:center;padding:3rem;color:var(--text-3)">No FDs yet — add your first fixed deposit above</td></tr></tbody>
+        <tfoot id="fd-foot" style="display:none"><tr><td>Total</td><td id="f-principal"></td><td></td><td></td><td></td><td></td><td id="f-maturity"></td><td id="f-interest" class="green"></td><td></td><td></td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="add-fd-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add fixed deposit</h2><button class="modal-close" onclick="closeModal('add-fd-modal')">×</button></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Bank name *</label>
+        <input type="text" id="fd-bank" class="form-input" placeholder="HDFC Bank"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">FD / Account number</label>
+        <input type="text" id="fd-num" class="form-input" placeholder="Optional"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Principal ₹ *</label>
+        <input type="number" id="fd-principal" class="form-input" placeholder="100000"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Interest rate % *</label>
+        <input type="number" id="fd-rate" class="form-input" placeholder="7.1" step="0.01"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tenure (months) *</label>
+        <input type="number" id="fd-tenure" class="form-input" placeholder="12"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start date *</label>
+        <input type="date" id="fd-start" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Compounding</label>
+        <select id="fd-comp" class="form-input">
+          <option value="quarterly">Quarterly</option>
+          <option value="monthly">Monthly</option>
+          <option value="annually">Annually</option>
+          <option value="cumulative">Cumulative (at maturity)</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:1.5rem">
+        <input type="checkbox" id="fd-taxsaver" style="width:auto"/>
+        <label class="form-label" style="margin:0">Tax saver FD (80C)</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-fd-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addFD()">Add FD →</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, fds = [];
+
+function computeMaturity(principal, rate, tenureMonths, compounding) {
+  const r = rate / 100;
+  let maturity;
+  if (compounding === 'monthly') maturity = principal * Math.pow(1 + r / 12, tenureMonths);
+  else if (compounding === 'quarterly') maturity = principal * Math.pow(1 + r / 4, 4 * tenureMonths / 12);
+  else if (compounding === 'annually') maturity = principal * Math.pow(1 + r, tenureMonths / 12);
+  else maturity = principal * (1 + r * tenureMonths / 12); // simple interest for cumulative
+  return maturity;
+}
+
+async function loadFDs() {
+  const { data } = await db.from('fixed_deposits').select('*').eq('user_id', user.id).order('start_date', { ascending: false });
+  fds = data || [];
+  renderFDs();
+}
+
+function renderFDs() {
+  let totalPrincipal = 0, totalMaturity = 0, taxSaverCount = 0, totalRate = 0;
+  const today = new Date();
+  const tbody = document.getElementById('fd-body');
+  if (!fds.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:3rem;color:var(--text-3)">No FDs yet</td></tr>'; return; }
+
+  tbody.innerHTML = fds.map(f => {
+    const maturity = computeMaturity(f.principal, f.interest_rate, f.tenure_months, f.compounding);
+    const interest = maturity - f.principal;
+    const startDate = new Date(f.start_date);
+    const maturityDate = f.maturity_date ? new Date(f.maturity_date) : new Date(startDate.setMonth(startDate.getMonth() + f.tenure_months));
+    const daysLeft = Math.max(0, Math.ceil((maturityDate - today) / 86400000));
+    const isMatured = daysLeft === 0;
+    totalPrincipal += f.principal; totalMaturity += maturity;
+    if (f.is_tax_saver) taxSaverCount++;
+    totalRate += f.interest_rate;
+    return `<tr>
+      <td><div class="sym">${f.bank_name}</div>${f.fd_number ? `<div class="name-small">${f.fd_number}</div>` : ''}</td>
+      <td>${inr(f.principal)}</td>
+      <td>${f.interest_rate}%</td>
+      <td>${f.tenure_months}m (${f.compounding})</td>
+      <td>${f.start_date}</td>
+      <td>${maturityDate.toISOString().split('T')[0]}</td>
+      <td class="green">${inr(maturity)}</td>
+      <td class="green">+${inr(interest)}</td>
+      <td><span class="badge badge-${isMatured ? 'green' : daysLeft < 30 ? 'red' : 'gray'}">${isMatured ? 'Matured' : daysLeft + 'd'}</span></td>
+      <td>${f.is_tax_saver ? '<span class="badge badge-blue">80C</span>' : '—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteFD('${f.id}')">×</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('fd-foot').style.display = '';
+  document.getElementById('f-principal').textContent = inr(totalPrincipal);
+  document.getElementById('f-maturity').textContent = inr(totalMaturity);
+  document.getElementById('f-interest').textContent = '+' + inr(totalMaturity - totalPrincipal);
+  document.getElementById('m-principal').textContent = inr(totalPrincipal);
+  document.getElementById('m-maturity').textContent = inr(totalMaturity);
+  document.getElementById('m-interest').textContent = '+' + inr(totalMaturity - totalPrincipal);
+  document.getElementById('m-rate').textContent = fds.length ? (totalRate / fds.length).toFixed(2) + '%' : '—';
+  document.getElementById('m-count').textContent = fds.length;
+  document.getElementById('m-taxsaver').textContent = taxSaverCount;
+}
+
+async function addFD() {
+  const bank = document.getElementById('fd-bank').value.trim();
+  const principal = parseFloat(document.getElementById('fd-principal').value);
+  const rate = parseFloat(document.getElementById('fd-rate').value);
+  const tenure = parseInt(document.getElementById('fd-tenure').value);
+  const start = document.getElementById('fd-start').value;
+  if (!bank || isNaN(principal) || isNaN(rate) || isNaN(tenure) || !start) return toast('Fill all required fields.', 'error');
+  const startDate = new Date(start);
+  const maturityDate = new Date(startDate); maturityDate.setMonth(maturityDate.getMonth() + tenure);
+  const { error } = await db.from('fixed_deposits').insert({
+    user_id: user.id, bank_name: bank,
+    fd_number: document.getElementById('fd-num').value.trim() || null,
+    principal, interest_rate: rate, tenure_months: tenure, start_date: start,
+    maturity_date: maturityDate.toISOString().split('T')[0],
+    compounding: document.getElementById('fd-comp').value,
+    is_tax_saver: document.getElementById('fd-taxsaver').checked
+  });
+  if (error) return toast('Error: ' + error.message, 'error');
+  toast('FD added', 'success'); closeModal('add-fd-modal'); loadFDs();
+}
+
+async function deleteFD(id) {
+  if (!confirm('Remove this FD?')) return;
+  await db.from('fixed_deposits').delete().eq('id', id);
+  toast('Removed', 'success'); loadFDs();
+}
+
+(async () => { user = await initPage('fd.html'); if (user) loadFDs(); })();
+</script>
+</body>
+</html>

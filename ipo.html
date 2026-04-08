@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IPOs · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div><div class="page-title">IPOs</div><div class="page-subtitle">Track applications, allotments & listing gains</div></div>
+      <button class="btn btn-primary" onclick="openModal('add-ipo-modal')">+ Add IPO</button>
+    </div>
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Total applied</div><div class="card-value" id="m-applied">—</div></div>
+      <div class="card"><div class="card-title">Total allotted cost</div><div class="card-value" id="m-cost">—</div></div>
+      <div class="card"><div class="card-title">Listing gains</div><div class="card-value green" id="m-gain">—</div></div>
+      <div class="card"><div class="card-title">Current value</div><div class="card-value" id="m-val">—</div></div>
+      <div class="card"><div class="card-title">Allotment rate</div><div class="card-value" id="m-allot">—</div></div>
+      <div class="card"><div class="card-title">Best performer</div><div class="card-value green" id="m-best">—</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Company</th><th>Symbol</th><th>Issue ₹</th><th>Listing ₹</th><th>CMP ₹</th><th>Applied</th><th>Allotted</th><th>Allot cost ₹</th><th>Listing gain ₹</th><th>Current gain ₹</th><th>Status</th><th></th></tr></thead>
+        <tbody id="ipo-body"><tr><td colspan="12" style="text-align:center;padding:3rem;color:var(--text-3)">No IPOs yet — add your first application</td></tr></tbody>
+        <tfoot id="ipo-foot" style="display:none"><tr><td colspan="7">Total</td><td id="f-cost"></td><td id="f-listing" class="green"></td><td id="f-current"></td><td></td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="add-ipo-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add IPO</h2><button class="modal-close" onclick="closeModal('add-ipo-modal')">×</button></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Company name *</label>
+        <input type="text" id="ipo-name" class="form-input" placeholder="e.g. Bajaj Housing Finance"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">NSE symbol</label>
+        <input type="text" id="ipo-sym" class="form-input" placeholder="BAJAJHFL" style="text-transform:uppercase"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Issue price ₹ *</label>
+        <input type="number" id="ipo-issue" class="form-input" placeholder="70"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Listing price ₹</label>
+        <input type="number" id="ipo-listing" class="form-input" placeholder="Leave blank if not listed"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Shares applied *</label>
+        <input type="number" id="ipo-applied" class="form-input" placeholder="150"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Shares allotted</label>
+        <input type="number" id="ipo-allotted" class="form-input" placeholder="0 if not allotted"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Apply date</label>
+        <input type="date" id="ipo-apply" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Listing date</label>
+        <input type="date" id="ipo-list-date" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="ipo-status" class="form-input">
+          <option value="applied">Applied</option>
+          <option value="allotted">Allotted</option>
+          <option value="listed">Listed & holding</option>
+          <option value="exited">Exited</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-ipo-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addIPO()">Add IPO →</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, ipos = [], livePrices = {};
+
+async function loadIPOs() {
+  const { data } = await db.from('ipos').select('*').eq('user_id', user.id).order('apply_date', { ascending: false });
+  ipos = data || [];
+  const syms = ipos.filter(i => i.symbol).map(i => i.symbol);
+  if (syms.length) livePrices = await Prices.fetch(syms);
+  renderIPOs();
+}
+
+function renderIPOs() {
+  let totalCost = 0, totalListingGain = 0, totalCurrentVal = 0, allotted = 0, applied = 0;
+  let bestGainPct = -Infinity, bestSym = '—';
+  const tbody = document.getElementById('ipo-body');
+  if (!ipos.length) { tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:3rem;color:var(--text-3)">No IPOs yet</td></tr>'; return; }
+  tbody.innerHTML = ipos.map(i => {
+    const cost = i.issue_price * (i.allotted || 0);
+    const listingVal = (i.listing_price || i.issue_price) * (i.allotted || 0);
+    const listingGain = listingVal - cost;
+    const cmp = livePrices[i.symbol] || i.listing_price || i.issue_price;
+    const currentVal = cmp * (i.allotted || 0);
+    const currentGain = currentVal - cost;
+    const listingGainPct = cost > 0 ? listingGain / cost * 100 : 0;
+    totalCost += cost; totalListingGain += listingGain; totalCurrentVal += currentVal;
+    applied++; if (i.allotted > 0) allotted++;
+    if (listingGainPct > bestGainPct) { bestGainPct = listingGainPct; bestSym = i.company_name.split(' ').slice(0,2).join(' '); }
+    const statusColors = { applied: 'gray', allotted: 'blue', listed: 'green', exited: 'gold' };
+    return `<tr>
+      <td><div class="sym" style="font-size:12px">${i.company_name}</div></td>
+      <td>${i.symbol || '—'}</td>
+      <td>₹${i.issue_price}</td>
+      <td>${i.listing_price ? '₹' + i.listing_price : '—'}</td>
+      <td>${livePrices[i.symbol] ? '₹' + livePrices[i.symbol].toFixed(2) : '—'}</td>
+      <td>${i.quantity}</td>
+      <td>${i.allotted || 0}</td>
+      <td>${cost ? inr(cost) : '—'}</td>
+      <td class="${colorClass(listingGain)}">${i.allotted ? (listingGain >= 0 ? '+' : '') + inr(listingGain) + ' (' + pct(listingGainPct) + ')' : '—'}</td>
+      <td class="${colorClass(currentGain)}">${i.allotted && livePrices[i.symbol] ? (currentGain >= 0 ? '+' : '') + inr(currentGain) : '—'}</td>
+      <td><span class="badge badge-${statusColors[i.status]}">${i.status}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteIPO('${i.id}')">×</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('ipo-foot').style.display = '';
+  document.getElementById('f-cost').textContent = inr(totalCost);
+  document.getElementById('f-listing').textContent = (totalListingGain >= 0 ? '+' : '') + inr(totalListingGain);
+  const fcur = document.getElementById('f-current'); fcur.textContent = (totalCurrentVal - totalCost >= 0 ? '+' : '') + inr(totalCurrentVal - totalCost); fcur.className = colorClass(totalCurrentVal - totalCost);
+  document.getElementById('m-applied').textContent = applied;
+  document.getElementById('m-cost').textContent = totalCost ? inr(totalCost) : '—';
+  document.getElementById('m-gain').textContent = totalListingGain ? (totalListingGain >= 0 ? '+' : '') + inr(totalListingGain) : '—';
+  document.getElementById('m-val').textContent = totalCurrentVal ? inr(totalCurrentVal) : '—';
+  document.getElementById('m-allot').textContent = applied > 0 ? Math.round(allotted / applied * 100) + '%' : '—';
+  document.getElementById('m-best').textContent = bestSym !== '—' ? `${bestSym} +${bestGainPct.toFixed(1)}%` : '—';
+}
+
+async function addIPO() {
+  const name = document.getElementById('ipo-name').value.trim();
+  const issue = parseFloat(document.getElementById('ipo-issue').value);
+  const applied = parseInt(document.getElementById('ipo-applied').value);
+  if (!name || isNaN(issue) || isNaN(applied)) return toast('Fill required fields.', 'error');
+  const listing = parseFloat(document.getElementById('ipo-listing').value);
+  const { error } = await db.from('ipos').insert({
+    user_id: user.id, company_name: name,
+    symbol: document.getElementById('ipo-sym').value.trim().toUpperCase() || null,
+    issue_price: issue, listing_price: isNaN(listing) ? null : listing,
+    quantity: applied, allotted: parseInt(document.getElementById('ipo-allotted').value) || 0,
+    apply_date: document.getElementById('ipo-apply').value || null,
+    listing_date: document.getElementById('ipo-list-date').value || null,
+    status: document.getElementById('ipo-status').value
+  });
+  if (error) return toast('Error: ' + error.message, 'error');
+  toast('IPO added', 'success'); closeModal('add-ipo-modal'); loadIPOs();
+}
+
+async function deleteIPO(id) {
+  if (!confirm('Remove this IPO?')) return;
+  await db.from('ipos').delete().eq('id', id);
+  toast('Removed', 'success'); loadIPOs();
+}
+
+document.getElementById('ipo-sym').addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+(async () => { user = await initPage('ipo.html'); if (user) loadIPOs(); })();
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ETFs · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div><div class="page-title">ETFs</div><div class="page-subtitle">Exchange traded funds — live NSE prices</div></div>
+      <button class="btn btn-primary" onclick="openModal('add-etf-modal')">+ Add ETF</button>
+    </div>
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Cost basis</div><div class="card-value" id="m-cost">—</div></div>
+      <div class="card"><div class="card-title">Market value</div><div class="card-value" id="m-val">—</div></div>
+      <div class="card"><div class="card-title">Returns</div><div class="card-value" id="m-ret">—</div></div>
+      <div class="card"><div class="card-title">No. of ETFs</div><div class="card-value" id="m-count">—</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>ETF</th><th>Qty</th><th>Avg cost ₹</th><th>CMP ₹</th><th>Value ₹</th><th>P&L ₹</th><th>Return %</th><th></th></tr></thead>
+        <tbody id="etf-body"><tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-3)">No ETFs yet</td></tr></tbody>
+        <tfoot id="etf-foot" style="display:none"><tr><td colspan="4">Total</td><td id="f-val"></td><td id="f-pnl"></td><td id="f-ret"></td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+  </main>
+</div>
+<div class="modal-overlay" id="add-etf-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add ETF</h2><button class="modal-close" onclick="closeModal('add-etf-modal')">×</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Symbol *</label><input type="text" id="etf-sym" class="form-input" placeholder="LIQUIDCASE" style="text-transform:uppercase"/></div>
+      <div class="form-group"><label class="form-label">ETF name</label><input type="text" id="etf-name" class="form-input" placeholder="Zerodha Nifty 1D Rate Liquid ETF"/></div>
+      <div class="form-group"><label class="form-label">Quantity *</label><input type="number" id="etf-qty" class="form-input" placeholder="100"/></div>
+      <div class="form-group"><label class="form-label">Avg buy price ₹ *</label><input type="number" id="etf-price" class="form-input" placeholder="113"/></div>
+      <div class="form-group"><label class="form-label">Buy date</label><input type="date" id="etf-date" class="form-input"/></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-etf-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addETF()">Add ETF →</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, etfs = [], prices = {};
+async function loadETFs() {
+  const { data } = await db.from('stocks').select('*').eq('user_id', user.id).eq('category', 'etf').order('created_at', { ascending: false });
+  etfs = data || [];
+  if (etfs.length) prices = await Prices.fetch(etfs.map(e => e.symbol));
+  renderETFs();
+}
+function renderETFs() {
+  let totalCost = 0, totalVal = 0;
+  const tbody = document.getElementById('etf-body');
+  if (!etfs.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-3)">No ETFs yet</td></tr>'; return; }
+  tbody.innerHTML = etfs.map(e => {
+    const cmp = prices[e.symbol] || e.avg_price;
+    const cost = e.avg_price * e.quantity; const val = cmp * e.quantity;
+    const pnl = val - cost; const ret = cost > 0 ? pnl / cost * 100 : 0;
+    totalCost += cost; totalVal += val;
+    return `<tr><td><div class="sym">${e.symbol}</div><div class="name-small">${e.name||''}</div></td><td>${e.quantity}</td><td>₹${e.avg_price.toFixed(2)}</td><td>₹${cmp.toFixed(2)}</td><td>${inr(val)}</td><td class="${colorClass(pnl)}">${(pnl>=0?'+':'')+inr(pnl)}</td><td class="${colorClass(ret)}">${pct(ret)}</td><td><button class="btn btn-danger btn-sm" onclick="deleteETF('${e.id}')">×</button></td></tr>`;
+  }).join('');
+  const pnl = totalVal - totalCost; const ret = totalCost > 0 ? pnl/totalCost*100 : 0;
+  document.getElementById('etf-foot').style.display='';
+  document.getElementById('f-val').textContent=inr(totalVal);
+  const fp=document.getElementById('f-pnl');fp.textContent=(pnl>=0?'+':'')+inr(pnl);fp.className=colorClass(pnl);
+  document.getElementById('f-ret').textContent=pct(ret);
+  document.getElementById('m-cost').textContent=inr(totalCost);
+  document.getElementById('m-val').textContent=inr(totalVal);
+  const re=document.getElementById('m-ret');re.textContent=pct(ret);re.className=`card-value ${colorClass(ret)}`;
+  document.getElementById('m-count').textContent=etfs.length;
+}
+async function addETF() {
+  const sym=document.getElementById('etf-sym').value.trim().toUpperCase();
+  const qty=parseFloat(document.getElementById('etf-qty').value);
+  const price=parseFloat(document.getElementById('etf-price').value);
+  if(!sym||isNaN(qty)||isNaN(price)) return toast('Fill required fields.','error');
+  const {error}=await db.from('stocks').insert({user_id:user.id,symbol:sym,name:document.getElementById('etf-name').value.trim(),category:'etf',quantity:qty,avg_price:price,buy_date:document.getElementById('etf-date').value||null,exchange:'NSE'});
+  if(error) return toast(error.message,'error');
+  toast('ETF added','success');closeModal('add-etf-modal');loadETFs();
+}
+async function deleteETF(id){if(!confirm('Remove?'))return;await db.from('stocks').delete().eq('id',id);toast('Removed','success');loadETFs();}
+document.getElementById('etf-sym').addEventListener('input',function(){this.value=this.value.toUpperCase();});
+(async()=>{user=await initPage('etf.html');if(user)loadETFs();})();
+</script>
+</body>
+</html>

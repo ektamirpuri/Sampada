@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Physical Assets · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div><div class="page-title">Physical Assets</div><div class="page-subtitle">Gold, silver, real estate & more</div></div>
+      <button class="btn btn-primary" onclick="openModal('add-pa-modal')">+ Add asset</button>
+    </div>
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Total cost</div><div class="card-value" id="m-cost">—</div></div>
+      <div class="card"><div class="card-title">Current value</div><div class="card-value" id="m-val">—</div></div>
+      <div class="card"><div class="card-title">Unrealised gain</div><div class="card-value" id="m-pnl">—</div></div>
+      <div class="card"><div class="card-title">Gold holdings</div><div class="card-value gold" id="m-gold">—</div></div>
+      <div class="card"><div class="card-title">Real estate value</div><div class="card-value" id="m-re">—</div></div>
+      <div class="card"><div class="card-title">Other assets</div><div class="card-value" id="m-other">—</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Asset</th><th>Type</th><th>Qty / Size</th><th>Unit</th><th>Purchase price ₹</th><th>Total cost ₹</th><th>Current value ₹</th><th>Gain/Loss ₹</th><th>Return %</th><th></th></tr></thead>
+        <tbody id="pa-body"><tr><td colspan="10" style="text-align:center;padding:3rem;color:var(--text-3)">No physical assets yet</td></tr></tbody>
+        <tfoot id="pa-foot" style="display:none"><tr><td colspan="5">Total</td><td id="f-cost"></td><td id="f-val"></td><td id="f-pnl"></td><td></td><td></td></tr></tfoot>
+      </table></div>
+      <p class="muted small" style="margin-top:.75rem">Update current value periodically — gold via MCX rate × grams, real estate from your estimate</p>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="add-pa-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add physical asset</h2><button class="modal-close" onclick="closeModal('add-pa-modal')">×</button></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Asset type *</label>
+        <select id="pa-type" class="form-input" onchange="updateUnits()">
+          <option value="gold">Gold</option><option value="silver">Silver</option>
+          <option value="real_estate">Real Estate</option><option value="vehicle">Vehicle</option><option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description *</label>
+        <input type="text" id="pa-name" class="form-input" placeholder="e.g. 22K gold coins, Flat in Bhiwadi"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantity *</label>
+        <input type="number" id="pa-qty" class="form-input" placeholder="10"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unit</label>
+        <select id="pa-unit" class="form-input">
+          <option value="grams">Grams</option><option value="kg">KG</option>
+          <option value="sqft">Sq ft</option><option value="sqm">Sq m</option><option value="piece">Piece</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purchase price ₹ (per unit) *</label>
+        <input type="number" id="pa-price" class="form-input" placeholder="6500"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Current value ₹ (total)</label>
+        <input type="number" id="pa-current" class="form-input" placeholder="Leave blank to use cost"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purchase date</label>
+        <input type="date" id="pa-date" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location / notes</label>
+        <input type="text" id="pa-notes" class="form-input" placeholder="Bank locker, Home safe…"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-pa-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addPA()">Add asset →</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, assets = [];
+
+function updateUnits() {
+  const type = document.getElementById('pa-type').value;
+  const unitSel = document.getElementById('pa-unit');
+  if (type === 'gold' || type === 'silver') unitSel.value = 'grams';
+  else if (type === 'real_estate') unitSel.value = 'sqft';
+  else unitSel.value = 'piece';
+}
+
+async function loadPAs() {
+  const { data } = await db.from('physical_assets').select('*').eq('user_id', user.id).order('asset_type');
+  assets = data || [];
+  renderPAs();
+}
+
+function renderPAs() {
+  let totalCost = 0, totalVal = 0, goldVal = 0, reVal = 0, otherVal = 0;
+  const tbody = document.getElementById('pa-body');
+  if (!assets.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:3rem;color:var(--text-3)">No assets yet</td></tr>'; return; }
+  tbody.innerHTML = assets.map(a => {
+    const cost = a.purchase_price * a.quantity;
+    const val = a.current_value || cost;
+    const pnl = val - cost;
+    const ret = cost > 0 ? pnl / cost * 100 : 0;
+    totalCost += cost; totalVal += val;
+    if (a.asset_type === 'gold' || a.asset_type === 'silver') goldVal += val;
+    else if (a.asset_type === 'real_estate') reVal += val;
+    else otherVal += val;
+    const typeColors = { gold: 'gold', silver: 'gray', real_estate: 'blue', vehicle: 'gray', other: 'gray' };
+    return `<tr>
+      <td><div class="sym">${a.name}</div>${a.location ? `<div class="name-small">${a.location}</div>` : ''}</td>
+      <td><span class="badge badge-${typeColors[a.asset_type] || 'gray'}">${a.asset_type.replace('_', ' ')}</span></td>
+      <td>${a.quantity.toLocaleString('en-IN')}</td>
+      <td>${a.unit}</td>
+      <td>₹${a.purchase_price.toFixed(2)}</td>
+      <td>${inr(cost)}</td>
+      <td>
+        ${inr(val)}
+        <button class="btn btn-secondary btn-sm" style="margin-left:6px;font-size:10px" onclick="updateValue('${a.id}')">Edit</button>
+      </td>
+      <td class="${colorClass(pnl)}">${(pnl >= 0 ? '+' : '') + inr(pnl)}</td>
+      <td class="${colorClass(ret)}">${pct(ret)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deletePA('${a.id}')">×</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('pa-foot').style.display = '';
+  document.getElementById('f-cost').textContent = inr(totalCost);
+  document.getElementById('f-val').textContent = inr(totalVal);
+  const fpnl = document.getElementById('f-pnl'); fpnl.textContent = (totalVal - totalCost >= 0 ? '+' : '') + inr(totalVal - totalCost); fpnl.className = colorClass(totalVal - totalCost);
+  document.getElementById('m-cost').textContent = inr(totalCost);
+  document.getElementById('m-val').textContent = inr(totalVal);
+  const pnlEl = document.getElementById('m-pnl'); pnlEl.textContent = (totalVal - totalCost >= 0 ? '+' : '') + inr(totalVal - totalCost); pnlEl.className = `card-value ${colorClass(totalVal - totalCost)}`;
+  document.getElementById('m-gold').textContent = goldVal ? inr(goldVal) : '—';
+  document.getElementById('m-re').textContent = reVal ? inr(reVal) : '—';
+  document.getElementById('m-other').textContent = otherVal ? inr(otherVal) : '—';
+}
+
+async function addPA() {
+  const name = document.getElementById('pa-name').value.trim();
+  const qty = parseFloat(document.getElementById('pa-qty').value);
+  const price = parseFloat(document.getElementById('pa-price').value);
+  if (!name || isNaN(qty) || isNaN(price)) return toast('Fill required fields.', 'error');
+  const currentVal = parseFloat(document.getElementById('pa-current').value);
+  const { error } = await db.from('physical_assets').insert({
+    user_id: user.id, asset_type: document.getElementById('pa-type').value,
+    name, quantity: qty, unit: document.getElementById('pa-unit').value,
+    purchase_price: price, current_value: isNaN(currentVal) ? price * qty : currentVal,
+    purchase_date: document.getElementById('pa-date').value || null,
+    location: document.getElementById('pa-notes').value.trim() || null
+  });
+  if (error) return toast('Error: ' + error.message, 'error');
+  toast('Asset added', 'success'); closeModal('add-pa-modal'); loadPAs();
+}
+
+async function updateValue(id) {
+  const newVal = prompt('Enter updated current total value ₹:');
+  if (!newVal || isNaN(parseFloat(newVal))) return;
+  await db.from('physical_assets').update({ current_value: parseFloat(newVal), updated_at: new Date().toISOString() }).eq('id', id);
+  toast('Value updated', 'success'); loadPAs();
+}
+
+async function deletePA(id) {
+  if (!confirm('Remove this asset?')) return;
+  await db.from('physical_assets').delete().eq('id', id);
+  toast('Removed', 'success'); loadPAs();
+}
+
+(async () => { user = await initPage('physical.html'); if (user) loadPAs(); })();
+</script>
+</body>
+</html>

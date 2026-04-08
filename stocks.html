@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stocks & Smallcase · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Stocks & Smallcase</div>
+        <div class="page-subtitle">Live NSE prices · cost weight vs CMV weight</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="refresh-bar" style="margin:0">
+          <span class="live-dot"></span>
+          <span id="last-updated">—</span>
+          <button class="refresh-btn" onclick="loadStocks()">↻</button>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('add-modal')">+ Add holding</button>
+      </div>
+    </div>
+
+    <!-- METRICS -->
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Cost basis</div><div class="card-value" id="m-cost">—</div></div>
+      <div class="card"><div class="card-title">Market value</div><div class="card-value" id="m-val">—</div></div>
+      <div class="card"><div class="card-title">Unrealised P&L</div><div class="card-value" id="m-pnl">—</div></div>
+      <div class="card"><div class="card-title">Overall return</div><div class="card-value" id="m-ret">—</div></div>
+      <div class="card"><div class="card-title">Dividends received</div><div class="card-value green" id="m-div">₹0</div></div>
+      <div class="card"><div class="card-title">Total incl. dividends</div><div class="card-value" id="m-tot">—</div></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tabgroup="stock-tabs" onclick="showTab('tab-all', this, 'stock-tabs')">All holdings</button>
+      <button class="tab-btn" data-tabgroup="stock-tabs" onclick="showTab('tab-weights', this, 'stock-tabs')">Weights</button>
+      <button class="tab-btn" data-tabgroup="stock-tabs" onclick="showTab('tab-dividends', this, 'stock-tabs')">Dividends</button>
+    </div>
+
+    <!-- ALL HOLDINGS -->
+    <div id="tab-all" class="tab-panel stock-tabs active">
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Stock</th><th>Category</th><th>Qty</th>
+                <th>Avg cost ₹</th><th>Cost ₹</th><th>Cost wt %</th>
+                <th>CMP ₹</th><th>CMV ₹</th><th>CMV wt %</th>
+                <th>P&L ₹</th><th>Return %</th><th>Div ₹</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="stocks-body">
+              <tr><td colspan="14" class="empty-state" style="padding:3rem;text-align:center;color:var(--text-3)">No holdings yet — add your first stock above</td></tr>
+            </tbody>
+            <tfoot id="stocks-foot" style="display:none">
+              <tr>
+                <td colspan="3">Total</td>
+                <td></td><td id="f-cost"></td><td>100%</td>
+                <td></td><td id="f-val"></td><td>100%</td>
+                <td id="f-pnl"></td><td id="f-ret"></td><td id="f-div"></td><td></td><td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- REBALANCE ALERTS -->
+      <div id="alert-section" style="display:none">
+        <div class="section-title" style="margin-bottom:.75rem">Rebalance alerts</div>
+        <div id="alert-body"></div>
+      </div>
+    </div>
+
+    <!-- WEIGHTS -->
+    <div id="tab-weights" class="tab-panel stock-tabs">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:1.25rem">Cost weight vs CMV weight — target ~10% per stock</div>
+        <div id="weight-bars"></div>
+        <div style="display:flex;gap:14px;margin-top:1.25rem;font-size:11px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:var(--green);border-radius:2px;display:inline-block"></span>8–12% OK</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:var(--gold);border-radius:2px;display:inline-block"></span>12–15% or 6–8% Review</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>&gt;15% or &lt;6% Rebalance</span>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="section-title" style="margin-bottom:.75rem">Rebalance calculator</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Stock</th><th>Cost wt</th><th>CMV wt</th><th>Current CMV ₹</th><th>Target ₹</th><th>Gap ₹</th><th>Action</th></tr></thead>
+          <tbody id="rebal-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- DIVIDENDS -->
+    <div id="tab-dividends" class="tab-panel stock-tabs">
+      <div class="card" style="margin-bottom:1rem">
+        <div class="section-header">
+          <div class="section-title">Dividend log</div>
+          <button class="btn btn-secondary btn-sm" onclick="openModal('div-modal')">+ Log dividend</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Symbol</th><th>Amount ₹</th><th>Per share ₹</th><th>Yield on cost</th><th>Yield on CMP</th><th>Date</th></tr></thead>
+          <tbody id="div-body">
+            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3)">No dividends logged yet — log from Zerodha Console → Ledger</td></tr>
+          </tbody>
+          <tfoot id="div-foot"></tfoot>
+        </table></div>
+        <p class="muted small" style="margin-top:.75rem">Tip: Find exact dividend amounts in Zerodha Console → Reports → Ledger → filter by "Dividend"</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ADD STOCK MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add holding</h2>
+      <button class="modal-close" onclick="closeModal('add-modal')">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Symbol *</label>
+        <input type="text" id="add-sym" class="form-input" placeholder="e.g. INFY" style="text-transform:uppercase"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Company name</label>
+        <input type="text" id="add-name" class="form-input" placeholder="Infosys Ltd"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select id="add-cat" class="form-input">
+          <option value="stock">Stock</option>
+          <option value="etf">ETF</option>
+          <option value="smallcase">Smallcase</option>
+        </select>
+      </div>
+      <div class="form-group" id="sc-name-group" style="display:none">
+        <label class="form-label">Smallcase name</label>
+        <input type="text" id="add-sc-name" class="form-input" placeholder="e.g. NNF10"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantity *</label>
+        <input type="number" id="add-qty" class="form-input" placeholder="100"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Avg buy price ₹ *</label>
+        <input type="number" id="add-price" class="form-input" placeholder="1500"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Buy date</label>
+        <input type="date" id="add-date" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Exchange</label>
+        <select id="add-exchange" class="form-input">
+          <option value="NSE">NSE</option>
+          <option value="BSE">BSE</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addStock()">Add holding →</button>
+    </div>
+  </div>
+</div>
+
+<!-- DIVIDEND MODAL -->
+<div class="modal-overlay" id="div-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Log dividend received</h2>
+      <button class="modal-close" onclick="closeModal('div-modal')">×</button>
+    </div>
+    <p class="muted small" style="margin-bottom:1rem">Enter the exact amount from Zerodha Console → Reports → Ledger</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Symbol *</label>
+        <select id="div-sym" class="form-input"><option value="">Select stock</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total received ₹ *</label>
+        <input type="number" id="div-amount" class="form-input" placeholder="e.g. 2625"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payment date</label>
+        <input type="date" id="div-date" class="form-input"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('div-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="logDividend()">Log dividend →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, allStocks = [], allDivs = [], livePrices = {};
+
+document.getElementById('add-cat').addEventListener('change', function() {
+  document.getElementById('sc-name-group').style.display = this.value === 'smallcase' ? 'block' : 'none';
+});
+
+document.getElementById('add-sym').addEventListener('input', function() {
+  this.value = this.value.toUpperCase();
+});
+
+function wst(w) { return w > 15 || w < 6 ? 'red' : w > 12 || w < 8 ? 'gold' : 'green'; }
+
+async function loadStocks() {
+  document.getElementById('last-updated').textContent = 'Fetching…';
+  const [stocksRes, divsRes] = await Promise.all([
+    db.from('stocks').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+    db.from('dividends').select('*').eq('user_id', user.id)
+  ]);
+
+  allStocks = stocksRes.data || [];
+  allDivs = divsRes.data || [];
+
+  if (allStocks.length) {
+    const syms = [...new Set(allStocks.map(s => s.symbol))];
+    livePrices = await Prices.fetch(syms);
+  }
+
+  renderAll();
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+  // Populate dividend symbol dropdown
+  const divSym = document.getElementById('div-sym');
+  divSym.innerHTML = '<option value="">Select stock</option>' + allStocks.map(s => `<option value="${s.symbol}">${s.symbol}</option>`).join('');
+}
+
+function renderAll() {
+  if (!allStocks.length) return;
+
+  const divBySymbol = {};
+  allDivs.forEach(d => { divBySymbol[d.symbol] = (divBySymbol[d.symbol] || 0) + d.amount; });
+
+  let totalCost = 0, totalCMV = 0, totalDiv = 0;
+  allStocks.forEach(s => {
+    totalCost += s.avg_price * s.quantity;
+    totalCMV += (livePrices[s.symbol] || s.avg_price) * s.quantity;
+    totalDiv += divBySymbol[s.symbol] || 0;
+  });
+
+  // Metrics
+  const pnl = totalCMV - totalCost;
+  const ret = totalCost > 0 ? pnl / totalCost * 100 : 0;
+  document.getElementById('m-cost').textContent = inr(totalCost);
+  document.getElementById('m-val').textContent = inr(totalCMV);
+  const pnlEl = document.getElementById('m-pnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + inr(pnl);
+  pnlEl.className = `card-value ${colorClass(pnl)}`;
+  const retEl = document.getElementById('m-ret');
+  retEl.textContent = pct(ret);
+  retEl.className = `card-value ${colorClass(ret)}`;
+  document.getElementById('m-div').textContent = inr(totalDiv);
+  const totEl = document.getElementById('m-tot');
+  totEl.textContent = (pnl + totalDiv >= 0 ? '+' : '') + inr(pnl + totalDiv);
+  totEl.className = `card-value ${colorClass(pnl + totalDiv)}`;
+
+  // Table
+  const alerts = [];
+  const tbody = document.getElementById('stocks-body');
+  tbody.innerHTML = allStocks.map(s => {
+    const cmp = livePrices[s.symbol] || s.avg_price;
+    const cost = s.avg_price * s.quantity;
+    const cmv = cmp * s.quantity;
+    const spnl = cmv - cost;
+    const sret = cost > 0 ? spnl / cost * 100 : 0;
+    const cw = totalCost > 0 ? cost / totalCost * 100 : 0;
+    const mw = totalCMV > 0 ? cmv / totalCMV * 100 : 0;
+    const ws = wst(mw);
+    const div = divBySymbol[s.symbol] || 0;
+
+    if (ws !== 'green') alerts.push({ sym: s.symbol, w: mw, cmp, cmv, target: totalCMV * 0.1, type: ws });
+
+    return `<tr>
+      <td><div class="sym">${s.symbol}</div><div class="name-small">${s.name || ''}</div></td>
+      <td><span class="badge badge-${s.category === 'smallcase' ? 'gold' : s.category === 'etf' ? 'blue' : 'gray'}">${s.category}</span></td>
+      <td>${s.quantity.toLocaleString('en-IN')}</td>
+      <td>₹${s.avg_price.toFixed(2)}</td>
+      <td>${inr(cost)}</td>
+      <td style="font-weight:500">${cw.toFixed(1)}%</td>
+      <td>₹${cmp.toFixed(2)}</td>
+      <td>${inr(cmv)}</td>
+      <td><span class="badge badge-${ws === 'green' ? 'green' : ws === 'gold' ? 'gold' : 'red'}">${mw.toFixed(1)}%</span></td>
+      <td class="${colorClass(spnl)}">${(spnl >= 0 ? '+' : '') + inr(spnl)}</td>
+      <td class="${colorClass(sret)}">${pct(sret)}</td>
+      <td class="green">${div > 0 ? inr(div) : '—'}</td>
+      <td><span class="badge badge-${ws === 'green' ? 'green' : ws === 'gold' ? 'gold' : 'red'}">${ws === 'green' ? 'OK' : ws === 'gold' ? 'Review' : 'Rebalance'}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteStock('${s.id}')">×</button></td>
+    </tr>`;
+  }).join('');
+
+  // Footer
+  document.getElementById('stocks-foot').style.display = '';
+  document.getElementById('f-cost').textContent = inr(totalCost);
+  document.getElementById('f-val').textContent = inr(totalCMV);
+  const fpnl = document.getElementById('f-pnl');
+  fpnl.textContent = (pnl >= 0 ? '+' : '') + inr(pnl);
+  fpnl.className = colorClass(pnl);
+  document.getElementById('f-ret').textContent = pct(ret);
+  document.getElementById('f-div').textContent = totalDiv > 0 ? inr(totalDiv) : '—';
+
+  // Alerts
+  const alertSection = document.getElementById('alert-section');
+  if (alerts.length) {
+    alertSection.style.display = 'block';
+    document.getElementById('alert-body').innerHTML = alerts.map(a => {
+      const diff = a.cmv - a.target;
+      const shares = Math.round(Math.abs(diff) / a.cmp);
+      return `<div class="alert alert-${a.type === 'red' ? 'danger' : 'warn'}" style="margin-bottom:8px">
+        <b>${a.sym}</b> — CMV weight ${a.w.toFixed(1)}% → target 10% &nbsp;|&nbsp;
+        ${diff > 0 ? `Sell ~${shares} shares` : `Buy ~${shares} shares`} (₹${Math.round(Math.abs(diff)).toLocaleString('en-IN')})
+      </div>`;
+    }).join('');
+  } else alertSection.style.display = 'none';
+
+  // Weights tab
+  renderWeights(totalCost, totalCMV);
+
+  // Dividends tab
+  renderDividends(divBySymbol, totalCost);
+}
+
+function renderWeights(totalCost, totalCMV) {
+  const divBySymbol = {};
+  allDivs.forEach(d => { divBySymbol[d.symbol] = (divBySymbol[d.symbol] || 0) + d.amount; });
+
+  document.getElementById('weight-bars').innerHTML = allStocks.map(s => {
+    const cmp = livePrices[s.symbol] || s.avg_price;
+    const cost = s.avg_price * s.quantity;
+    const cmv = cmp * s.quantity;
+    const cw = totalCost > 0 ? cost / totalCost * 100 : 0;
+    const mw = totalCMV > 0 ? cmv / totalCMV * 100 : 0;
+    const ws = wst(mw);
+    const col = ws === 'green' ? 'var(--green)' : ws === 'gold' ? 'var(--gold)' : 'var(--red)';
+    const target = totalCMV * 0.1;
+    const diff = cmv - target;
+    const shares = Math.round(Math.abs(diff) / cmp);
+    const action = Math.abs(diff) < 500 ? 'Balanced' : diff > 0 ? `Trim — sell ~${shares} shares` : `Add — buy ~${shares} shares`;
+    return `<div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:5px;flex-wrap:wrap;gap:8px">
+        <span style="font-weight:500">${s.symbol}</span>
+        <span style="display:flex;gap:14px;font-size:12px">
+          <span class="muted">Cost: <b style="color:var(--text)">${cw.toFixed(1)}%</b></span>
+          <span class="muted">CMV: <b style="color:${col}">${mw.toFixed(1)}%</b></span>
+          <span style="color:var(--text-3);font-size:11px">${action}</span>
+        </span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div>
+          <div style="font-size:10px;color:var(--text-3);margin-bottom:2px">Cost weight</div>
+          <div class="weight-bar-bg"><div class="weight-bar-fill" style="width:${Math.min(cw/20*100,100)}%;background:var(--text-3)"></div><div class="weight-target" style="left:${10/20*100}%"></div></div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text-3);margin-bottom:2px">CMV weight</div>
+          <div class="weight-bar-bg"><div class="weight-bar-fill" style="width:${Math.min(mw/20*100,100)}%;background:${col}"></div><div class="weight-target" style="left:${10/20*100}%"></div></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('rebal-body').innerHTML = allStocks.map(s => {
+    const cmp = livePrices[s.symbol] || s.avg_price;
+    const cost = s.avg_price * s.quantity;
+    const cmv = cmp * s.quantity;
+    const cw = totalCost > 0 ? cost / totalCost * 100 : 0;
+    const mw = totalCMV > 0 ? cmv / totalCMV * 100 : 0;
+    const ws = wst(mw);
+    const target = totalCMV * 0.1;
+    const diff = cmv - target;
+    const shares = Math.round(Math.abs(diff) / cmp);
+    return `<tr>
+      <td class="sym">${s.symbol}</td>
+      <td>${cw.toFixed(1)}%</td>
+      <td><span class="badge badge-${ws === 'green' ? 'green' : ws === 'gold' ? 'gold' : 'red'}">${mw.toFixed(1)}%</span></td>
+      <td>${inr(cmv)}</td><td>${inr(target)}</td>
+      <td class="${colorClass(-diff)}">${(diff >= 0 ? '+' : '') + inr(diff)}</td>
+      <td style="font-size:12px;color:${Math.abs(diff)<500?'var(--text-3)':diff>0?'var(--red)':'var(--green)'}">${Math.abs(diff)<500?'Balanced':diff>0?`Sell ~${shares} sh`:`Buy ~${shares} sh`}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDividends(divBySymbol, totalCost) {
+  let totalDiv = 0;
+  const tbody = document.getElementById('div-body');
+  if (!Object.keys(divBySymbol).length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-3)">No dividends logged yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = Object.entries(divBySymbol).map(([sym, amt]) => {
+    const s = allStocks.find(s => s.symbol === sym);
+    const perShare = s ? amt / s.quantity : 0;
+    const yoc = s && s.avg_price > 0 ? perShare / s.avg_price * 100 : 0;
+    const cmp = livePrices[sym] || s?.avg_price || 0;
+    const ycmp = cmp > 0 ? perShare / cmp * 100 : 0;
+    totalDiv += amt;
+    return `<tr>
+      <td class="sym">${sym}</td>
+      <td class="green">${inr(amt)}</td>
+      <td>${perShare > 0 ? '₹' + perShare.toFixed(2) : '—'}</td>
+      <td>${yoc > 0 ? yoc.toFixed(2) + '%' : '—'}</td>
+      <td>${ycmp > 0 ? ycmp.toFixed(2) + '%' : '—'}</td>
+      <td>—</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('div-foot').innerHTML = `<tr><td>Total</td><td class="green">${inr(totalDiv)}</td><td colspan="4"></td></tr>`;
+}
+
+async function addStock() {
+  const sym = document.getElementById('add-sym').value.trim().toUpperCase();
+  const name = document.getElementById('add-name').value.trim();
+  const cat = document.getElementById('add-cat').value;
+  const scName = document.getElementById('add-sc-name').value.trim();
+  const qty = parseFloat(document.getElementById('add-qty').value);
+  const price = parseFloat(document.getElementById('add-price').value);
+  const date = document.getElementById('add-date').value;
+  const exchange = document.getElementById('add-exchange').value;
+
+  if (!sym || isNaN(qty) || isNaN(price)) return toast('Symbol, quantity and price are required.', 'error');
+
+  const { error } = await db.from('stocks').insert({
+    user_id: user.id, symbol: sym, name, category: cat,
+    smallcase_name: scName, quantity: qty, avg_price: price,
+    buy_date: date || null, exchange
+  });
+
+  if (error) return toast('Error: ' + error.message, 'error');
+  toast(sym + ' added successfully', 'success');
+  closeModal('add-modal');
+  ['add-sym','add-name','add-qty','add-price','add-date','add-sc-name'].forEach(id => document.getElementById(id).value = '');
+  loadStocks();
+}
+
+async function deleteStock(id) {
+  if (!confirm('Remove this holding?')) return;
+  await db.from('stocks').delete().eq('id', id);
+  toast('Removed', 'success');
+  loadStocks();
+}
+
+async function logDividend() {
+  const sym = document.getElementById('div-sym').value;
+  const amount = parseFloat(document.getElementById('div-amount').value);
+  const date = document.getElementById('div-date').value;
+  if (!sym || isNaN(amount) || amount <= 0) return toast('Select a stock and enter amount.', 'error');
+  const s = allStocks.find(s => s.symbol === sym);
+  const perShare = s ? amount / s.quantity : null;
+  const { error } = await db.from('dividends').insert({
+    user_id: user.id, symbol: sym, amount,
+    per_share: perShare, payment_date: date || null
+  });
+  if (error) return toast('Error: ' + error.message, 'error');
+  toast('Dividend logged', 'success');
+  closeModal('div-modal');
+  loadStocks();
+}
+
+(async () => {
+  user = await initPage('stocks.html');
+  if (user) loadStocks();
+})();
+</script>
+</body>
+</html>

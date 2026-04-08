@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mutual Funds · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div><div class="page-title">Mutual Funds</div><div class="page-subtitle">SIP + lumpsum · live NAV via MFAPI</div></div>
+      <button class="btn btn-primary" onclick="openModal('add-mf-modal')">+ Add fund</button>
+    </div>
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Total invested</div><div class="card-value" id="m-cost">—</div></div>
+      <div class="card"><div class="card-title">Current value</div><div class="card-value" id="m-val">—</div></div>
+      <div class="card"><div class="card-title">Total returns</div><div class="card-value" id="m-pnl">—</div></div>
+      <div class="card"><div class="card-title">Return %</div><div class="card-value" id="m-ret">—</div></div>
+      <div class="card"><div class="card-title">Active SIPs</div><div class="card-value" id="m-sips">—</div></div>
+      <div class="card"><div class="card-title">Monthly SIP</div><div class="card-value" id="m-monthly">—</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Fund</th><th>Type</th><th>Mode</th><th>Invested ₹</th><th>Units</th><th>Avg NAV ₹</th><th>Current NAV ₹</th><th>Value ₹</th><th>Returns</th><th>SIP ₹/mo</th><th></th></tr></thead>
+        <tbody id="mf-body"><tr><td colspan="11" style="text-align:center;padding:3rem;color:var(--text-3)">No funds yet — add your first mutual fund above</td></tr></tbody>
+        <tfoot id="mf-foot" style="display:none"><tr><td colspan="3">Total</td><td id="f-cost"></td><td></td><td></td><td></td><td id="f-val"></td><td id="f-ret"></td><td id="f-sip"></td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="add-mf-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add mutual fund</h2><button class="modal-close" onclick="closeModal('add-mf-modal')">×</button></div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Fund name *</label>
+        <input type="text" id="mf-name" class="form-input" placeholder="Mirae Asset Large Cap Fund - Direct Growth"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">MFAPI Scheme Code</label>
+        <input type="text" id="mf-code" class="form-input" placeholder="118834 (optional, for live NAV)"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fund type</label>
+        <select id="mf-type" class="form-input">
+          <option value="equity">Equity</option><option value="debt">Debt</option>
+          <option value="hybrid">Hybrid</option><option value="index">Index</option><option value="elss">ELSS</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Investment mode</label>
+        <select id="mf-mode" class="form-input">
+          <option value="sip">SIP</option><option value="lumpsum">Lumpsum</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total invested ₹ *</label>
+        <input type="number" id="mf-invested" class="form-input" placeholder="50000"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Units held</label>
+        <input type="number" id="mf-units" class="form-input" placeholder="100.5"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Avg NAV ₹</label>
+        <input type="number" id="mf-nav" class="form-input" placeholder="480"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">SIP amount ₹/month</label>
+        <input type="number" id="mf-sip" class="form-input" placeholder="5000"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start date</label>
+        <input type="date" id="mf-date" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Folio number</label>
+        <input type="text" id="mf-folio" class="form-input" placeholder="Optional"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-mf-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addMF()">Add fund →</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, funds = [];
+
+async function loadMFs() {
+  const { data } = await db.from('mutual_funds').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+  funds = data || [];
+  // Try to fetch live NAV for funds with scheme codes
+  for (const f of funds) {
+    if (f.scheme_code) {
+      const nav = await Prices.getMF(f.scheme_code);
+      if (nav) f.live_nav = nav;
+    }
+  }
+  renderMFs();
+}
+
+function renderMFs() {
+  let totalCost = 0, totalVal = 0, totalSIP = 0, sipCount = 0;
+  const tbody = document.getElementById('mf-body');
+  if (!funds.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:3rem;color:var(--text-3)">No funds yet</td></tr>'; return; }
+
+  tbody.innerHTML = funds.map(f => {
+    const nav = f.live_nav || f.avg_nav || 0;
+    const val = f.units > 0 && nav > 0 ? f.units * nav : f.invested_amount;
+    const pnl = val - f.invested_amount;
+    const ret = f.invested_amount > 0 ? pnl / f.invested_amount * 100 : 0;
+    totalCost += f.invested_amount; totalVal += val;
+    if (f.investment_type === 'sip' && f.sip_amount) { totalSIP += f.sip_amount; sipCount++; }
+    return `<tr>
+      <td><div class="sym" style="font-size:12px">${f.fund_name}</div></td>
+      <td><span class="badge badge-${f.type === 'equity' ? 'blue' : f.type === 'elss' ? 'green' : 'gray'}">${f.type}</span></td>
+      <td><span class="badge badge-${f.investment_type === 'sip' ? 'gold' : 'gray'}">${f.investment_type}</span></td>
+      <td>${inr(f.invested_amount)}</td>
+      <td>${f.units ? f.units.toFixed(3) : '—'}</td>
+      <td>${f.avg_nav ? '₹' + f.avg_nav.toFixed(2) : '—'}</td>
+      <td>${f.live_nav ? '₹' + f.live_nav.toFixed(2) : '—'}</td>
+      <td>${inr(val)}</td>
+      <td class="${colorClass(pnl)}">${pct(ret)}</td>
+      <td>${f.sip_amount ? inr(f.sip_amount) : '—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteMF('${f.id}')">×</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('mf-foot').style.display = '';
+  document.getElementById('f-cost').textContent = inr(totalCost);
+  document.getElementById('f-val').textContent = inr(totalVal);
+  const ret = totalCost > 0 ? (totalVal - totalCost) / totalCost * 100 : 0;
+  document.getElementById('f-ret').textContent = pct(ret);
+  document.getElementById('f-sip').textContent = totalSIP ? inr(totalSIP) + '/mo' : '—';
+  document.getElementById('m-cost').textContent = inr(totalCost);
+  document.getElementById('m-val').textContent = inr(totalVal);
+  const pnlEl = document.getElementById('m-pnl'); pnlEl.textContent = (totalVal - totalCost >= 0 ? '+' : '') + inr(totalVal - totalCost); pnlEl.className = `card-value ${colorClass(totalVal - totalCost)}`;
+  const retEl = document.getElementById('m-ret'); retEl.textContent = pct(ret); retEl.className = `card-value ${colorClass(ret)}`;
+  document.getElementById('m-sips').textContent = sipCount;
+  document.getElementById('m-monthly').textContent = totalSIP ? inr(totalSIP) : '—';
+}
+
+async function addMF() {
+  const name = document.getElementById('mf-name').value.trim();
+  const invested = parseFloat(document.getElementById('mf-invested').value);
+  if (!name || isNaN(invested)) return toast('Fund name and invested amount are required.', 'error');
+  const { error } = await db.from('mutual_funds').insert({
+    user_id: user.id, fund_name: name,
+    scheme_code: document.getElementById('mf-code').value.trim() || null,
+    type: document.getElementById('mf-type').value,
+    investment_type: document.getElementById('mf-mode').value,
+    invested_amount: invested,
+    units: parseFloat(document.getElementById('mf-units').value) || 0,
+    avg_nav: parseFloat(document.getElementById('mf-nav').value) || 0,
+    sip_amount: parseFloat(document.getElementById('mf-sip').value) || 0,
+    start_date: document.getElementById('mf-date').value || null,
+    folio_number: document.getElementById('mf-folio').value.trim() || null
+  });
+  if (error) return toast('Error: ' + error.message, 'error');
+  toast(name.substring(0, 30) + '… added', 'success');
+  closeModal('add-mf-modal');
+  loadMFs();
+}
+
+async function deleteMF(id) {
+  if (!confirm('Remove this fund?')) return;
+  await db.from('mutual_funds').delete().eq('id', id);
+  toast('Removed', 'success'); loadMFs();
+}
+
+(async () => { user = await initPage('mutualfunds.html'); if (user) loadMFs(); })();
+</script>
+</body>
+</html>

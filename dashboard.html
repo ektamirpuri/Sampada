@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Good morning ✦</div>
+        <div class="page-subtitle">Here's your wealth snapshot</div>
+      </div>
+      <div class="refresh-bar">
+        <span class="live-dot"></span>
+        <span id="last-updated">Loading…</span>
+        <button class="refresh-btn" onclick="loadAll()">Refresh ↻</button>
+      </div>
+    </div>
+
+    <!-- NET WORTH HERO -->
+    <div class="networth-hero">
+      <div class="networth-label">Total net worth</div>
+      <div class="networth-value" id="networth-value">₹—</div>
+      <div class="networth-change" id="networth-change">Calculating…</div>
+      <div class="allocation-row" id="allocation-pills"></div>
+    </div>
+
+    <!-- METRIC GRID -->
+    <div class="metric-grid" id="metric-grid">
+      <div class="card">
+        <div class="card-title">Stocks & Smallcase</div>
+        <div class="card-value" id="m-stocks">—</div>
+        <div class="card-change" id="m-stocks-ret"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Mutual Funds</div>
+        <div class="card-value" id="m-mf">—</div>
+        <div class="card-change" id="m-mf-ret"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Fixed Deposits</div>
+        <div class="card-value" id="m-fd">—</div>
+        <div class="card-change" id="m-fd-int"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Physical Assets</div>
+        <div class="card-value" id="m-physical">—</div>
+        <div class="card-change muted" style="font-size:11px">Gold, silver, real estate</div>
+      </div>
+      <div class="card">
+        <div class="card-title">IPOs</div>
+        <div class="card-value" id="m-ipo">—</div>
+        <div class="card-change" id="m-ipo-gain"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Other Trading</div>
+        <div class="card-value" id="m-other">—</div>
+        <div class="card-change" id="m-other-ret"></div>
+      </div>
+    </div>
+
+    <!-- CHART + ALLOCATION -->
+    <div class="dashboard-grid">
+      <div class="card section">
+        <div class="section-header">
+          <div class="section-title">Recent activity</div>
+          <a href="stocks.html" class="btn btn-secondary btn-sm">View stocks →</a>
+        </div>
+        <div id="recent-activity">
+          <div class="empty-state">
+            <div class="empty-icon">◎</div>
+            <p>Add your holdings to see recent activity</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title" style="margin-bottom:1rem">Allocation</div>
+        <div class="donut-wrap">
+          <canvas id="donut-chart" width="200" height="200" role="img" aria-label="Portfolio allocation donut chart"></canvas>
+        </div>
+        <div id="donut-legend" style="margin-top:1rem"></div>
+      </div>
+    </div>
+
+    <!-- QUICK LINKS -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Quick add</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        <a href="stocks.html" class="card" style="text-decoration:none;display:flex;align-items:center;gap:10px;padding:1rem">
+          <span style="font-size:1.25rem">◉</span>
+          <div><div style="font-weight:500;font-size:13px">Add stock</div><div style="font-size:11px;color:var(--text-3)">NSE/BSE</div></div>
+        </a>
+        <a href="mutualfunds.html" class="card" style="text-decoration:none;display:flex;align-items:center;gap:10px;padding:1rem">
+          <span style="font-size:1.25rem">◎</span>
+          <div><div style="font-weight:500;font-size:13px">Add MF</div><div style="font-size:11px;color:var(--text-3)">SIP or lumpsum</div></div>
+        </a>
+        <a href="fd.html" class="card" style="text-decoration:none;display:flex;align-items:center;gap:10px;padding:1rem">
+          <span style="font-size:1.25rem">◍</span>
+          <div><div style="font-weight:500;font-size:13px">Add FD</div><div style="font-size:11px;color:var(--text-3)">Fixed deposit</div></div>
+        </a>
+        <a href="physical.html" class="card" style="text-decoration:none;display:flex;align-items:center;gap:10px;padding:1rem">
+          <span style="font-size:1.25rem">◆</span>
+          <div><div style="font-weight:500;font-size:13px">Add gold</div><div style="font-size:11px;color:var(--text-3)">Physical assets</div></div>
+        </a>
+        <a href="ipo.html" class="card" style="text-decoration:none;display:flex;align-items:center;gap:10px;padding:1rem">
+          <span style="font-size:1.25rem">◌</span>
+          <div><div style="font-weight:500;font-size:13px">Add IPO</div><div style="font-size:11px;color:var(--text-3)">Track allotments</div></div>
+        </a>
+        <a href="other.html" class="card" style="text-decoration:none;display:flex;align-items:center;gap:10px;padding:1rem">
+          <span style="font-size:1.25rem">◇</span>
+          <div><div style="font-weight:500;font-size:13px">Other</div><div style="font-size:11px;color:var(--text-3)">F&O, crypto…</div></div>
+        </a>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, donutChart;
+
+const COLORS = {
+  stocks: '#c9a84c',
+  mf: '#2dd4a0',
+  fd: '#6090f0',
+  physical: '#e8c96b',
+  ipo: '#f06060',
+  other: '#9090a8'
+};
+
+async function loadAll() {
+  if (!user) return;
+  document.getElementById('last-updated').textContent = 'Refreshing…';
+
+  const uid = user.id;
+  const [stocks, mfs, fds, physicals, ipos, others] = await Promise.all([
+    db.from('stocks').select('*').eq('user_id', uid),
+    db.from('mutual_funds').select('*').eq('user_id', uid),
+    db.from('fixed_deposits').select('*').eq('user_id', uid),
+    db.from('physical_assets').select('*').eq('user_id', uid),
+    db.from('ipos').select('*').eq('user_id', uid),
+    db.from('other_trading').select('*').eq('user_id', uid),
+  ]);
+
+  // Fetch live prices for stocks
+  const symbols = (stocks.data || []).map(s => s.symbol);
+  const prices = symbols.length ? await Prices.fetch(symbols) : {};
+
+  // STOCKS VALUE
+  let stocksCost = 0, stocksCMV = 0;
+  (stocks.data || []).forEach(s => {
+    const cost = s.avg_price * s.quantity;
+    const cmp = prices[s.symbol] || s.avg_price;
+    stocksCost += cost;
+    stocksCMV += cmp * s.quantity;
+  });
+  const stocksRet = stocksCost > 0 ? (stocksCMV - stocksCost) / stocksCost * 100 : 0;
+  document.getElementById('m-stocks').textContent = stocksCMV ? inr(stocksCMV) : '—';
+  const sr = document.getElementById('m-stocks-ret');
+  sr.textContent = stocksCost ? `Cost: ${inr(stocksCost)} · ${pct(stocksRet)}` : 'No holdings yet';
+  sr.className = `card-change ${colorClass(stocksRet)}`;
+
+  // MF VALUE
+  let mfCost = 0, mfCMV = 0;
+  (mfs.data || []).forEach(f => {
+    mfCost += f.invested_amount;
+    mfCMV += f.units > 0 && f.avg_nav > 0 ? f.units * f.avg_nav : f.invested_amount;
+  });
+  document.getElementById('m-mf').textContent = mfCMV ? inr(mfCMV) : '—';
+  const mfRet = mfCost > 0 ? (mfCMV - mfCost) / mfCost * 100 : 0;
+  const mr = document.getElementById('m-mf-ret');
+  mr.textContent = mfCost ? `${pct(mfRet)} returns` : 'No funds yet';
+  mr.className = `card-change ${colorClass(mfRet)}`;
+
+  // FD VALUE
+  let fdTotal = 0;
+  (fds.data || []).forEach(f => {
+    const months = f.tenure_months;
+    const rate = f.interest_rate / 100;
+    // Compound interest quarterly
+    const maturity = f.principal * Math.pow(1 + rate / 4, 4 * months / 12);
+    fdTotal += maturity;
+  });
+  document.getElementById('m-fd').textContent = fdTotal ? inr(fdTotal) : '—';
+  const fdCost = (fds.data || []).reduce((s, f) => s + f.principal, 0);
+  document.getElementById('m-fd-int').textContent = fdCost ? `Principal: ${inr(fdCost)}` : 'No FDs yet';
+
+  // PHYSICAL VALUE
+  let physicalTotal = 0;
+  (physicals.data || []).forEach(a => {
+    physicalTotal += a.current_value || a.purchase_price * a.quantity;
+  });
+  document.getElementById('m-physical').textContent = physicalTotal ? inr(physicalTotal) : '—';
+
+  // IPO VALUE
+  let ipoCMV = 0, ipoCost = 0;
+  (ipos.data || []).forEach(i => {
+    ipoCost += i.issue_price * (i.allotted || 0);
+    ipoCMV += (i.listing_price || i.issue_price) * (i.allotted || 0);
+  });
+  document.getElementById('m-ipo').textContent = ipoCMV ? inr(ipoCMV) : '—';
+  const ipoGain = ipoCMV - ipoCost;
+  const ig = document.getElementById('m-ipo-gain');
+  ig.textContent = ipoCost ? `Listing gain: ${ipoGain >= 0 ? '+' : ''}${inr(ipoGain)}` : 'No IPOs yet';
+  ig.className = `card-change ${colorClass(ipoGain)}`;
+
+  // OTHER VALUE
+  let otherTotal = 0, otherCost = 0;
+  (others.data || []).forEach(o => { otherTotal += o.current_value; otherCost += o.invested_amount; });
+  document.getElementById('m-other').textContent = otherTotal ? inr(otherTotal) : '—';
+  const otherRet = otherCost > 0 ? (otherTotal - otherCost) / otherCost * 100 : 0;
+  const or = document.getElementById('m-other-ret');
+  or.textContent = otherCost ? pct(otherRet) : 'No positions yet';
+  or.className = `card-change ${colorClass(otherRet)}`;
+
+  // NET WORTH
+  const networth = stocksCMV + mfCMV + fdTotal + physicalTotal + ipoCMV + otherTotal;
+  const totalCost = stocksCost + mfCost + fdCost + (physicals.data||[]).reduce((s,a)=>s+a.purchase_price*a.quantity,0) + ipoCost + otherCost;
+  const totalGain = networth - totalCost;
+  const totalRet = totalCost > 0 ? totalGain / totalCost * 100 : 0;
+
+  document.getElementById('networth-value').textContent = networth > 0 ? inr(networth) : '₹0';
+  const nc = document.getElementById('networth-change');
+  nc.innerHTML = networth > 0
+    ? `<span class="${colorClass(totalGain)}">${totalGain >= 0 ? '+' : ''}${inr(totalGain)} (${pct(totalRet)})</span> <span class="muted">overall return</span>`
+    : 'Add your holdings to see your net worth';
+
+  // ALLOCATION PILLS
+  const alloc = [
+    { key: 'stocks', label: 'Stocks', value: stocksCMV },
+    { key: 'mf', label: 'Mutual Funds', value: mfCMV },
+    { key: 'fd', label: 'FDs', value: fdTotal },
+    { key: 'physical', label: 'Physical', value: physicalTotal },
+    { key: 'ipo', label: 'IPOs', value: ipoCMV },
+    { key: 'other', label: 'Other', value: otherTotal },
+  ].filter(a => a.value > 0);
+
+  document.getElementById('allocation-pills').innerHTML = alloc.map(a => `
+    <div class="allocation-pill">
+      <span class="allocation-dot" style="background:${COLORS[a.key]}"></span>
+      <span>${a.label}</span>
+      <span class="muted">${networth > 0 ? (a.value / networth * 100).toFixed(1) + '%' : '—'}</span>
+    </div>`).join('');
+
+  // DONUT CHART
+  renderDonut(alloc, networth);
+
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderDonut(alloc, total) {
+  const ctx = document.getElementById('donut-chart').getContext('2d');
+  if (donutChart) donutChart.destroy();
+
+  if (!alloc.length) {
+    document.getElementById('donut-legend').innerHTML = '<p class="muted small" style="text-align:center">Add holdings to see allocation</p>';
+    return;
+  }
+
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: alloc.map(a => a.label),
+      datasets: [{
+        data: alloc.map(a => a.value),
+        backgroundColor: alloc.map(a => COLORS[a.key]),
+        borderWidth: 2,
+        borderColor: '#111118',
+        hoverBorderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: {
+          label: ctx => ` ${inr(ctx.raw)} (${(ctx.raw/total*100).toFixed(1)}%)`
+        }
+      }}
+    }
+  });
+
+  document.getElementById('donut-legend').innerHTML = alloc.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px">
+      <span style="display:flex;align-items:center;gap:6px">
+        <span style="width:8px;height:8px;border-radius:2px;background:${COLORS[a.key]};display:inline-block"></span>
+        ${a.label}
+      </span>
+      <span style="color:var(--text-2)">${(a.value/total*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+(async () => {
+  user = await initPage('dashboard.html');
+  if (user) {
+    const profile = await Auth.getProfile(user.id);
+    const name = profile?.full_name?.split(' ')[0] || 'there';
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    document.querySelector('.page-title').textContent = `${greeting}, ${name} ✦`;
+    loadAll();
+  }
+})();
+</script>
+</body>
+</html>

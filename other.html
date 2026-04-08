@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Other Trading · Sampada</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <main class="main">
+    <div class="page-header">
+      <div><div class="page-title">Other Trading</div><div class="page-subtitle">F&O, commodities, crypto, PMS, AIF & more</div></div>
+      <button class="btn btn-primary" onclick="openModal('add-ot-modal')">+ Add position</button>
+    </div>
+    <div class="metric-grid">
+      <div class="card"><div class="card-title">Total invested</div><div class="card-value" id="m-cost">—</div></div>
+      <div class="card"><div class="card-title">Current value</div><div class="card-value" id="m-val">—</div></div>
+      <div class="card"><div class="card-title">Overall P&L</div><div class="card-value" id="m-pnl">—</div></div>
+      <div class="card"><div class="card-title">Return %</div><div class="card-value" id="m-ret">—</div></div>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Category</th><th>Invested ₹</th><th>Current value ₹</th><th>P&L ₹</th><th>Return %</th><th>Date</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="ot-body"><tr><td colspan="9" style="text-align:center;padding:3rem;color:var(--text-3)">No positions yet</td></tr></tbody>
+        <tfoot id="ot-foot" style="display:none"><tr><td colspan="2">Total</td><td id="f-cost"></td><td id="f-val"></td><td id="f-pnl"></td><td id="f-ret"></td><td colspan="3"></td></tr></tfoot>
+      </table></div>
+    </div>
+  </main>
+</div>
+<div class="modal-overlay" id="add-ot-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add position</h2><button class="modal-close" onclick="closeModal('add-ot-modal')">×</button></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Category *</label>
+        <select id="ot-cat" class="form-input">
+          <option value="fo">F&O (Futures & Options)</option>
+          <option value="commodity">Commodity (MCX)</option>
+          <option value="crypto">Crypto</option>
+          <option value="pms">PMS</option>
+          <option value="aif">AIF</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Name / description *</label><input type="text" id="ot-name" class="form-input" placeholder="e.g. Nifty CE 22000, BTC, Axis PMS Growth"/></div>
+      <div class="form-group"><label class="form-label">Invested ₹ *</label><input type="number" id="ot-invested" class="form-input" placeholder="100000"/></div>
+      <div class="form-group"><label class="form-label">Current value ₹ *</label><input type="number" id="ot-current" class="form-input" placeholder="110000"/></div>
+      <div class="form-group"><label class="form-label">Entry date</label><input type="date" id="ot-date" class="form-input"/></div>
+      <div class="form-group"><label class="form-label">Notes</label><input type="text" id="ot-notes" class="form-input" placeholder="Optional"/></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('add-ot-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addOT()">Add position →</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="js/app.js"></script>
+<script>
+let user, positions = [];
+async function loadOTs() {
+  const { data } = await db.from('other_trading').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+  positions = data || [];
+  renderOTs();
+}
+function renderOTs() {
+  let totalCost = 0, totalVal = 0;
+  const tbody = document.getElementById('ot-body');
+  if (!positions.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:3rem;color:var(--text-3)">No positions yet</td></tr>'; return; }
+  const catColors = { fo: 'red', commodity: 'gold', crypto: 'blue', pms: 'green', aif: 'green', other: 'gray' };
+  tbody.innerHTML = positions.map(p => {
+    const pnl = p.current_value - p.invested_amount;
+    const ret = p.invested_amount > 0 ? pnl / p.invested_amount * 100 : 0;
+    totalCost += p.invested_amount; totalVal += p.current_value;
+    return `<tr>
+      <td class="sym">${p.name}</td>
+      <td><span class="badge badge-${catColors[p.category]||'gray'}">${p.category.toUpperCase()}</span></td>
+      <td>${inr(p.invested_amount)}</td>
+      <td>
+        ${inr(p.current_value)}
+        <button class="btn btn-secondary btn-sm" style="margin-left:4px;font-size:10px" onclick="updateOT('${p.id}')">Edit</button>
+      </td>
+      <td class="${colorClass(pnl)}">${(pnl>=0?'+':'')+inr(pnl)}</td>
+      <td class="${colorClass(ret)}">${pct(ret)}</td>
+      <td style="color:var(--text-3);font-size:12px">${p.entry_date||'—'}</td>
+      <td style="color:var(--text-3);font-size:12px">${p.notes||'—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteOT('${p.id}')">×</button></td>
+    </tr>`;
+  }).join('');
+  const pnl = totalVal - totalCost; const ret = totalCost > 0 ? pnl/totalCost*100 : 0;
+  document.getElementById('ot-foot').style.display='';
+  document.getElementById('f-cost').textContent=inr(totalCost);
+  document.getElementById('f-val').textContent=inr(totalVal);
+  const fp=document.getElementById('f-pnl');fp.textContent=(pnl>=0?'+':'')+inr(pnl);fp.className=colorClass(pnl);
+  document.getElementById('f-ret').textContent=pct(ret);
+  document.getElementById('m-cost').textContent=inr(totalCost);
+  document.getElementById('m-val').textContent=inr(totalVal);
+  const pe=document.getElementById('m-pnl');pe.textContent=(pnl>=0?'+':'')+inr(pnl);pe.className=`card-value ${colorClass(pnl)}`;
+  const re=document.getElementById('m-ret');re.textContent=pct(ret);re.className=`card-value ${colorClass(ret)}`;
+}
+async function addOT() {
+  const name=document.getElementById('ot-name').value.trim();
+  const invested=parseFloat(document.getElementById('ot-invested').value);
+  const current=parseFloat(document.getElementById('ot-current').value);
+  if(!name||isNaN(invested)||isNaN(current)) return toast('Fill required fields.','error');
+  const {error}=await db.from('other_trading').insert({user_id:user.id,category:document.getElementById('ot-cat').value,name,invested_amount:invested,current_value:current,entry_date:document.getElementById('ot-date').value||null,notes:document.getElementById('ot-notes').value.trim()||null});
+  if(error) return toast(error.message,'error');
+  toast('Position added','success');closeModal('add-ot-modal');loadOTs();
+}
+async function updateOT(id) {
+  const newVal=prompt('Updated current value ₹:');
+  if(!newVal||isNaN(parseFloat(newVal))) return;
+  await db.from('other_trading').update({current_value:parseFloat(newVal),updated_at:new Date().toISOString()}).eq('id',id);
+  toast('Updated','success');loadOTs();
+}
+async function deleteOT(id){if(!confirm('Remove?'))return;await db.from('other_trading').delete().eq('id',id);toast('Removed','success');loadOTs();}
+(async()=>{user=await initPage('other.html');if(user)loadOTs();})();
+</script>
+</body>
+</html>
