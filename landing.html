@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sampada · Private Wealth Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --obs:#080810;--obs2:#0e0e1a;--obs3:#141422;--obs4:#1c1c2e;
+      --gold:#c9a24a;--gold2:#e2b85a;--gold3:#f0cc7a;
+      --gold-dim:rgba(201,162,74,0.08);--gold-glow:rgba(201,162,74,0.12);
+      --gold-border:rgba(201,162,74,0.2);
+      --emerald:#2dd4a0;--ruby:#f06060;
+      --text:#f0eff8;--text2:#9090a8;--text3:#44445a;
+      --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);
+      --font:'Geist',system-ui,sans-serif;
+      --display:'Playfair Display',Georgia,serif;
+      --mono:'Geist Mono','Courier New',monospace;
+      --ease:cubic-bezier(0.16,1,0.3,1);
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:var(--font);background:var(--obs);color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+    /* GRAIN */
+    body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:0.35}
+
+    /* NAV */
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5%;height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:rgba(8,8,16,0.85);backdrop-filter:blur(12px)}
+    .nav-logo{font-family:var(--display);font-size:1.375rem;color:var(--gold);letter-spacing:-0.02em;text-decoration:none}
+    .nav-links{display:flex;align-items:center;gap:2rem}
+    .nav-links a{font-size:0.875rem;color:var(--text2);text-decoration:none;transition:color 0.15s}
+    .nav-links a:hover{color:var(--text)}
+    .nav-right{display:flex;align-items:center;gap:10px}
+    .btn-nav-ghost{padding:7px 18px;border:1px solid var(--border2);border-radius:8px;font-size:0.875rem;color:var(--text2);background:transparent;cursor:pointer;font-family:var(--font);text-decoration:none;transition:all 0.15s}
+    .btn-nav-ghost:hover{color:var(--gold);border-color:var(--gold-border)}
+    .btn-nav-cta{padding:8px 20px;background:var(--gold);border:none;border-radius:8px;font-size:0.875rem;font-weight:600;color:var(--obs);cursor:pointer;font-family:var(--font);text-decoration:none;transition:all 0.15s}
+    .btn-nav-cta:hover{background:var(--gold2);box-shadow:0 4px 20px rgba(201,162,74,0.3)}
+
+    /* HERO */
+    .hero{min-height:100vh;display:flex;align-items:center;padding:80px 5% 0;position:relative;overflow:hidden}
+    .hero-bg{position:absolute;inset:0;pointer-events:none}
+    .hero-bg::before{content:'';position:absolute;top:-20%;right:-10%;width:600px;height:600px;background:radial-gradient(ellipse at center,rgba(201,162,74,0.06) 0%,transparent 70%)}
+    .hero-bg::after{content:'';position:absolute;bottom:-20%;left:-10%;width:500px;height:500px;background:radial-gradient(ellipse at center,rgba(96,144,240,0.04) 0%,transparent 70%)}
+    .hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);background-size:60px 60px}
+
+    .hero-inner{max-width:1200px;margin:0 auto;width:100%;display:grid;grid-template-columns:1fr 480px;gap:5rem;align-items:center;position:relative}
+    @media(max-width:960px){.hero-inner{grid-template-columns:1fr;gap:3rem}.hero-right{display:none}}
+
+    .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:99px;padding:5px 14px;font-size:0.6875rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:1.5rem}
+    .hero-eyebrow-dot{width:6px;height:6px;border-radius:50%;background:var(--emerald);box-shadow:0 0 8px var(--emerald);animation:pip 2s infinite}
+    @keyframes pip{0%,100%{opacity:1}50%{opacity:0.3}}
+
+    .hero-title{font-family:var(--display);font-size:clamp(2.5rem,5vw,3.75rem);font-weight:500;line-height:1.1;letter-spacing:-0.03em;margin-bottom:1.5rem;color:var(--text)}
+    .hero-title em{color:var(--gold);font-style:italic}
+
+    .hero-sub{font-size:1.0625rem;color:var(--text2);line-height:1.7;margin-bottom:2.5rem;max-width:520px}
+
+    .hero-cta-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .btn-hero{padding:13px 28px;background:var(--gold);border:none;border-radius:10px;font-size:0.9375rem;font-weight:600;color:var(--obs);cursor:pointer;font-family:var(--font);text-decoration:none;transition:all 0.2s var(--ease);display:inline-block}
+    .btn-hero:hover{background:var(--gold2);transform:translateY(-2px);box-shadow:0 8px 30px rgba(201,162,74,0.35)}
+    .btn-hero-ghost{padding:13px 28px;background:transparent;border:1px solid var(--border2);border-radius:10px;font-size:0.9375rem;color:var(--text2);cursor:pointer;font-family:var(--font);text-decoration:none;transition:all 0.2s;display:inline-block}
+    .btn-hero-ghost:hover{color:var(--text);border-color:var(--border2)}
+
+    .hero-trust{display:flex;align-items:center;gap:1.5rem;margin-top:1.5rem;flex-wrap:wrap}
+    .trust-item{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text3)}
+    .trust-check{width:16px;height:16px;border-radius:50%;background:var(--gold-dim);border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--gold)}
+
+    /* HERO RIGHT — DASHBOARD PREVIEW */
+    .hero-right{position:relative}
+    .dashboard-preview{background:var(--obs2);border:1px solid var(--border2);border-radius:20px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,0.6);position:relative}
+    .preview-bar{height:36px;background:var(--obs3);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:6px}
+    .preview-dot{width:10px;height:10px;border-radius:50%}
+    .preview-title{font-size:0.6875rem;color:var(--text3);margin-left:auto;font-family:var(--mono);letter-spacing:0.04em}
+    .preview-body{padding:1.25rem}
+    .preview-nw{font-family:var(--display);font-size:1.75rem;color:var(--gold);margin-bottom:4px}
+    .preview-nw-label{font-size:0.625rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
+    .preview-change{font-size:0.75rem;font-family:var(--mono);color:var(--emerald);margin-bottom:1rem}
+    .preview-bar2{height:1px;background:var(--border);margin-bottom:1rem}
+    .preview-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.75rem}
+    .preview-row:last-child{border-bottom:none}
+    .preview-row-name{color:var(--text2);font-family:var(--mono)}
+    .preview-row-val{font-family:var(--mono);font-weight:500}
+    .up{color:var(--emerald)}.down{color:var(--ruby)}.gold{color:var(--gold)}
+
+    /* Floating badge */
+    .preview-badge{position:absolute;bottom:-16px;right:24px;background:var(--obs3);border:1px solid var(--gold-border);border-radius:12px;padding:10px 16px;font-size:0.6875rem;font-family:var(--mono)}
+    .preview-badge-val{font-size:1.125rem;color:var(--emerald);font-weight:500;display:block}
+    .preview-badge-label{color:var(--text3);margin-top:2px}
+
+    /* FEATURES */
+    .features{padding:8rem 5%;max-width:1200px;margin:0 auto}
+    .section-eyebrow{text-align:center;font-size:0.6875rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:1rem}
+    .section-title{text-align:center;font-family:var(--display);font-size:clamp(2rem,4vw,2.75rem);font-weight:500;letter-spacing:-0.02em;margin-bottom:1rem;color:var(--text)}
+    .section-sub{text-align:center;font-size:1rem;color:var(--text2);max-width:500px;margin:0 auto 4rem;line-height:1.7}
+
+    .feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem}
+    .feat-card{background:var(--obs2);border:1px solid var(--border);border-radius:16px;padding:1.75rem;position:relative;overflow:hidden;transition:all 0.25s var(--ease)}
+    .feat-card:hover{border-color:var(--gold-border);transform:translateY(-2px)}
+    .feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(201,162,74,0.12),transparent)}
+    .feat-icon{width:40px;height:40px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--gold);margin-bottom:1rem;font-family:var(--mono)}
+    .feat-title{font-size:1rem;font-weight:600;margin-bottom:0.5rem;color:var(--text)}
+    .feat-desc{font-size:0.875rem;color:var(--text2);line-height:1.7}
+
+    /* ASSET CLASSES STRIP */
+    .assets{padding:5rem 5%;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--obs2)}
+    .assets-inner{max-width:1200px;margin:0 auto}
+    .assets-label{font-size:0.6875rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:1.5rem;font-weight:600;text-align:center}
+    .assets-strip{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+    .asset-chip{background:var(--obs3);border:1px solid var(--border);border-radius:10px;padding:10px 18px;font-size:0.8125rem;color:var(--text2);display:flex;align-items:center;gap:8px;transition:all 0.15s}
+    .asset-chip:hover{border-color:var(--gold-border);color:var(--text)}
+    .asset-chip-icon{font-size:1rem}
+
+    /* STATS */
+    .stats{padding:6rem 5%;max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2rem}
+    .stat{text-align:center}
+    .stat-val{font-family:var(--display);font-size:3rem;color:var(--gold);letter-spacing:-0.03em;line-height:1}
+    .stat-label{font-size:0.75rem;color:var(--text3);letter-spacing:0.06em;text-transform:uppercase;margin-top:8px}
+
+    /* CTA SECTION */
+    .cta-section{padding:6rem 5%;text-align:center;position:relative;overflow:hidden}
+    .cta-section::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:300px;background:radial-gradient(ellipse at center,rgba(201,162,74,0.06) 0%,transparent 70%);pointer-events:none}
+    .cta-box{max-width:600px;margin:0 auto;position:relative}
+    .cta-title{font-family:var(--display);font-size:clamp(2rem,4vw,2.75rem);font-weight:500;letter-spacing:-0.02em;margin-bottom:1rem}
+    .cta-sub{font-size:1rem;color:var(--text2);margin-bottom:2rem;line-height:1.7}
+
+    /* FOOTER */
+    footer{padding:2rem 5%;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+    .footer-logo{font-family:var(--display);font-size:1.125rem;color:var(--gold)}
+    .footer-copy{font-size:0.75rem;color:var(--text3)}
+
+    /* ANIMATIONS */
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    .fade-up{animation:fadeUp 0.6s var(--ease) both}
+    .fade-up-1{animation-delay:0.1s}.fade-up-2{animation-delay:0.2s}.fade-up-3{animation-delay:0.3s}
+
+    @media(max-width:768px){
+      .nav-links{display:none}
+      .hero{padding-top:100px}
+      .stats{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo" style="display:flex;flex-direction:column;line-height:1.1"><span>Sampada</span><span style="font-family:var(--font);font-size:0.5rem;color:var(--text3);letter-spacing:0.08em;font-weight:400">संपदा</span></a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#assets">Asset Classes</a>
+    <a href="#about">About</a>
+  </div>
+  <div class="nav-right">
+    <a href="/Sampada/index.html" class="btn-nav-ghost">Sign in</a>
+    <a href="/Sampada/index.html" class="btn-nav-cta">Get started free</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div><div style="position:absolute;top:50%;right:3%;transform:translateY(-50%);font-family:var(--display);font-size:clamp(6rem,12vw,14rem);color:rgba(201,162,74,0.03);font-weight:600;line-height:1;pointer-events:none;user-select:none;letter-spacing:-0.02em">संपदा</div>
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-eyebrow fade-up">
+        <span class="hero-eyebrow-dot"></span>
+        Private wealth intelligence · संपदा
+      </div>
+      <h1 class="hero-title fade-up fade-up-1">
+        Every rupee you own,<br/>
+        tracked <em>live</em> in one<br/>
+        dashboard.
+      </h1>
+      <p class="hero-sub fade-up fade-up-2">
+        Stocks, mutual funds, gold, fixed deposits, IPOs and more — unified in Sampada. See your real net worth, live weights, and exactly where to rebalance.
+      </p>
+      <div class="hero-cta-row fade-up fade-up-3">
+        <a href="/Sampada/index.html" class="btn-hero">Start for free →</a>
+        <a href="#features" class="btn-hero-ghost">See how it works</a>
+      </div>
+      <div class="hero-trust fade-up fade-up-3">
+        <div class="trust-item">
+          <div class="trust-check">✓</div>
+          100% free forever
+        </div>
+        <div class="trust-item">
+          <div class="trust-check">✓</div>
+          Live NSE prices
+        </div>
+        <div class="trust-item">
+          <div class="trust-check">✓</div>
+          Bank-grade security
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD PREVIEW -->
+    <div class="hero-right fade-up fade-up-2">
+      <div class="dashboard-preview">
+        <div class="preview-bar">
+          <div class="preview-dot" style="background:#ff5f57"></div>
+          <div class="preview-dot" style="background:#febc2e"></div>
+          <div class="preview-dot" style="background:#28c840"></div>
+          <span class="preview-title">sampada.xyz · dashboard</span>
+        </div>
+        <div class="preview-body">
+          <div class="preview-nw-label">Total Net Worth</div>
+          <div class="preview-nw">₹42,18,640</div>
+          <div class="preview-change">+₹3,84,210 &nbsp;(+10.02%) overall</div>
+          <div class="preview-bar2"></div>
+          <div class="preview-row">
+            <span class="preview-row-name">◉ Stocks & Smallcase</span>
+            <span class="preview-row-val up">+8.34%</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-row-name">◎ Mutual Funds</span>
+            <span class="preview-row-val up">+12.70%</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-row-name">◆ Physical Gold</span>
+            <span class="preview-row-val up">+18.20%</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-row-name">◍ Fixed Deposits</span>
+            <span class="preview-row-val gold">7.10% p.a.</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-row-name">◌ IPOs</span>
+            <span class="preview-row-val up">+24.5% listing</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-row-name">◇ Other Trading</span>
+            <span class="preview-row-val down">-3.20%</span>
+          </div>
+        </div>
+      </div>
+      <div class="preview-badge">
+        <span class="preview-badge-val">+₹3,842</span>
+        <div class="preview-badge-label">today's gain</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ASSET CLASSES -->
+<div class="assets" id="assets">
+  <div class="assets-inner">
+    <div class="assets-label">9 asset classes supported</div>
+    <div class="assets-strip">
+      <div class="asset-chip"><span class="asset-chip-icon">◉</span> Stocks</div>
+      <div class="asset-chip"><span class="asset-chip-icon">◎</span> Mutual Funds</div>
+      <div class="asset-chip"><span class="asset-chip-icon">◈</span> ETFs</div>
+      <div class="asset-chip"><span class="asset-chip-icon">◆</span> Gold & Silver</div>
+      <div class="asset-chip"><span class="asset-chip-icon">◍</span> Fixed Deposits</div>
+      <div class="asset-chip"><span class="asset-chip-icon">◌</span> IPOs</div>
+      <div class="asset-chip"><span class="asset-chip-icon">⬡</span> Smallcase</div>
+      <div class="asset-chip"><span class="asset-chip-icon">◇</span> F&O & Commodity</div>
+      <div class="asset-chip"><span class="asset-chip-icon">⬟</span> Real Estate</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-eyebrow">Why Sampada</div>
+  <h2 class="section-title">Built for serious investors</h2>
+  <p class="section-sub">Not a broker. Not a trading app. A pure intelligence layer over your entire wealth.</p>
+
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-icon">◉</div>
+      <div class="feat-title">Live NSE prices</div>
+      <div class="feat-desc">Every stock and ETF price updates in real time from NSE. No stale data, no delays. See your actual net worth right now.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">⚖</div>
+      <div class="feat-title">Cost weight vs CMV weight</div>
+      <div class="feat-desc">See what % of your money went into each stock vs what % it represents today. Spot overweight positions instantly and know exactly how many shares to trim.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">◎</div>
+      <div class="feat-title">Mutual fund NAV</div>
+      <div class="feat-desc">Live NAV via MFAPI for all Indian mutual funds. Track SIPs, lumpsum investments and returns across equity, debt and hybrid funds.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">◆</div>
+      <div class="feat-title">Physical assets</div>
+      <div class="feat-desc">Gold in grams, silver in kg, real estate in sq ft. Add your physical holdings and track their current value alongside your financial assets.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">◍</div>
+      <div class="feat-title">FD maturity calculator</div>
+      <div class="feat-desc">Add any FD with rate, tenure and compounding type. Sampada auto-computes the exact maturity value and days remaining.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">◌</div>
+      <div class="feat-title">IPO tracker</div>
+      <div class="feat-desc">Track every application, allotment and listing gain. Know your IPO hit rate and total listing profits at a glance.</div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div style="border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-val">9</div>
+      <div class="stat-label">Asset classes</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">Live</div>
+      <div class="stat-label">NSE price feed</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">Free</div>
+      <div class="stat-label">No subscription</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">∞</div>
+      <div class="stat-label">Holdings you can add</div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-box">
+    <h2 class="cta-title">Your wealth deserves a proper dashboard.</h2>
+    <p class="cta-sub">Create your account in 30 seconds. No credit card. No broker required. Just clarity.</p><p style="font-size:1.5rem;font-family:var(--display);color:var(--text3);margin-bottom:2rem;font-style:italic">आपकी संपदा, एक जगह।</p>
+    <a href="/Sampada/index.html" class="btn-hero">Create free account →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Sampada</div>
+  <div class="footer-copy">संपदा · Private wealth intelligence · संपदा · sampada.xyz</div>
+  <div style="font-size:0.75rem;color:var(--text3)">Built for Indian investors</div>
+</footer>
+
+</body>
+</html>
